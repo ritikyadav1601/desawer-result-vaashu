@@ -93,13 +93,25 @@ export default async function Home() {
               <p>
                 (Last Time)
                 <br />
+                ⏰ सदर बाजार --------------- 01:20 PM
+                <br />
+                ⏰ ग्वालियर ------------------- 02:20 PM
+                <br />
                 ⏰ दिल्ली बाजार ----------- 03:00 PM
+                <br />
+                ⏰ दिल्ली मटका ------------- 03:20 PM
                 <br />
                 ⏰ श्री गणेश --------------- 04:20PM
                 <br />
+                ⏰ आगरा ---------------------- 05:20PM
+                <br />
                 ⏰ फरीदाबाद -------------- 05:50 PM
                 <br />
+                ⏰ अलवर --------------------- 07:20 PM
+                <br />
                 ⏰ गाज़ियाबाद ------------- 08:50 PM
+                <br />
+                ⏰ द्वारका --------------------- 10:15 PM
                 <br />
                 ⏰ गली ------------------ 11:20 PM
                 <br />
@@ -237,9 +249,7 @@ function FloatingActions() {
       <a href={getWhatsAppHref()} className="floating" target="_blank" rel="noreferrer">
         <Image src="/img/whatsappicon.png" width={60} height={60} alt="WhatsApp" />
       </a>
-      <a href={telegramUrl} className="floatingtelegram" target="_blank" rel="noreferrer">
-        <Image src="/img/telegramChannel.png" width={61} height={60} alt="Telegram" />
-      </a>
+    
     </>
   );
 }
