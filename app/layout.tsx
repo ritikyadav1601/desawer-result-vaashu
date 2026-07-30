@@ -1,22 +1,58 @@
 import type { Metadata } from "next";
+import { defaultDescription, siteName, siteUrl } from "@/lib/seo";
 import "./globals.css";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://desawerresult.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Desawer Result Satta King | Fast & Accurate Satta Bazar Results Online",
-  description: "Get latest Desawer result, live market updates, record charts, and monthly result tables in a simple mobile friendly layout.",
+  title: {
+    default: "Desawer Result Today | Live Satta King Result & Chart",
+    template: `%s | ${siteName}`
+  },
+  description: defaultDescription,
+  applicationName: siteName,
+  authors: [{ name: siteName, url: siteUrl }],
+  creator: siteName,
+  publisher: siteName,
+  category: "Results",
+  manifest: "/manifest.webmanifest",
   keywords: ["Desawer Result", "Satta King", "Gali Result", "Faridabad Result", "Ghaziabad Result"],
+  referrer: "origin-when-cross-origin",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false
+  },
   alternates: {
     canonical: "/"
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1
+    }
+  },
   openGraph: {
-    title: "Desawer Result Satta King",
-    description: "Daily live result updates and monthly record charts.",
+    title: "Desawer Result Today | Live Satta King Result & Chart",
+    description: defaultDescription,
     url: siteUrl,
-    siteName: "Desawer Result",
-    type: "website"
+    siteName,
+    locale: "en_IN",
+    type: "website",
+    images: [{ url: "/images/logo.png", width: 879, height: 87, alt: "Desawer Result" }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Desawer Result Today | Live Satta King Result & Chart",
+    description: defaultDescription,
+    images: ["/images/logo.png"]
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined
   }
 };
 

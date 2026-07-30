@@ -1,8 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { chartShortNames, chartTitle, getGameRecord, getMonthlyRows } from "@/lib/data";
-import { monthNames } from "@/lib/date";
+import { chartShortNames, chartTitle, fallbackGames, getGameRecord, getMonthlyRows } from "@/lib/data";
+import { getIndiaDateParts, monthNames } from "@/lib/date";
 
 export const revalidate = 60;
 
@@ -38,6 +39,48 @@ function adjacentMonth(monthIndex: number, year: number, direction: -1 | 1) {
   return { monthIndex: nextMonth, year };
 }
 
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const canonical = `/${slug}`;
+  const monthYear = parseMonthYear(slug);
+
+  if (monthYear) {
+    const label = `${monthNames[monthYear.monthIndex]} ${monthYear.year}`;
+    const title = `${label} Satta Result Chart: Desawer, Gali, Faridabad & Ghaziabad`;
+    const description = `View the ${label} Satta King result chart with date-wise records for Desawer, Gali, Faridabad, and Ghaziabad.`;
+    const current = getIndiaDateParts();
+    const isFuture =
+      monthYear.year > current.year ||
+      (monthYear.year === current.year && monthYear.monthIndex > current.monthIndex);
+
+    return {
+      title,
+      description,
+      alternates: { canonical },
+      robots: isFuture ? { index: false, follow: true } : undefined,
+      openGraph: { title, description, url: canonical, type: "article" },
+      twitter: { title, description }
+    };
+  }
+
+  const game = fallbackGames.find(
+    (item) => item.chartSlug.toLowerCase() === slug.toLowerCase()
+  );
+  if (!game) {
+    return { title: "Result Chart Not Found", robots: { index: false, follow: false } };
+  }
+
+  const title = `${game.name} Satta Result Record Chart`;
+  const description = `Check the latest ${game.name} result and browse its date-wise Satta King record chart and previous results.`;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, type: "article" },
+    twitter: { title, description }
+  };
+}
+
 export default async function DynamicPage({ params }: PageProps) {
   const { slug } = await params;
   const monthYear = parseMonthYear(slug);
@@ -51,6 +94,10 @@ export default async function DynamicPage({ params }: PageProps) {
 
     return (
       <>
+        <ChartSchema
+          title={`${monthNames[monthYear.monthIndex]} ${monthYear.year} Satta Result Chart`}
+          path={`/${slug}`}
+        />
         <Link className="navbar-brand" href="/" title="Home Page">
           <div className="text-center">
             <Image src="/images/logo.png" width={879} height={87} alt="brand Logo" priority />
@@ -102,6 +149,7 @@ export default async function DynamicPage({ params }: PageProps) {
 
   return (
     <>
+      <ChartSchema title={`${record.game.name} Satta Result Record Chart`} path={`/${slug}`} />
       <Link className="navbar-brand" href="/" title="Home Page">
         <div className="text-center">
           <Image src="/images/logo.png" width={879} height={87} alt="brand Logo" priority />
@@ -132,5 +180,24 @@ export default async function DynamicPage({ params }: PageProps) {
         </p>
       </main>
     </>
+  );
+}
+
+function ChartSchema({ title, path }: { title: string; path: string }) {
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://desawerresult.com").replace(/\/+$/, "");
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${baseUrl}/` },
+      { "@type": "ListItem", position: 2, name: title, item: `${baseUrl}${path}` }
+    ]
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }}
+    />
   );
 }

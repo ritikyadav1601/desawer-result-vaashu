@@ -1,6 +1,5 @@
-import { ObjectId, type Document } from "mongodb";
-import { getDb } from "./mongodb";
-import { daysInMonth, monthNames, toDateKey } from "./date";
+import { daysInMonth, getIndiaDateParts, monthNames } from "./date";
+import { getMainGameResultsForDates, getMainGameResultsForMonth } from "./main-game-results";
 
 export type Game = {
   id: string;
@@ -11,21 +10,9 @@ export type Game = {
   sortOrder: number;
 };
 
-export type BoardRow = Game & {
-  yesterday: string;
-  today: string;
-};
-
-export type MonthlyRow = {
-  day: string;
-  values: Record<string, string>;
-};
-
-export type RecordRow = {
-  date: string;
-  result: string;
-};
-
+export type BoardRow = Game & { yesterday: string; today: string };
+export type MonthlyRow = { day: string; values: Record<string, string> };
+export type RecordRow = { date: string; result: string };
 export type HomeData = {
   games: Game[];
   boardRows: BoardRow[];
@@ -35,268 +22,282 @@ export type HomeData = {
   selectedYear: number;
 };
 
-const fallbackGames: Game[] = [
-  { id: "sadar-bazar", name: "SADAR BAZAR", shortName: "SB", resultTime: "01:30 PM", chartSlug: "SADAR-BAZAR-satta-result-chart", sortOrder: 1 },
-  { id: "gwalior", name: "GWALIOR", shortName: "GW", resultTime: "02:30 PM", chartSlug: "GWALIOR-satta-result-chart", sortOrder: 2 },
-  { id: "delhi-bazar", name: "Delhi Bazar", shortName: "DB", resultTime: "03:05 PM", chartSlug: "Delhi-Bazar-satta-result-chart", sortOrder: 3 },
-  { id: "delhi-matka", name: "Delhi Matka", shortName: "DM", resultTime: "03:40 PM", chartSlug: "Delhi-Matka-satta-result-chart", sortOrder: 4 },
-  { id: "shree-ganesh", name: "Shree Ganesh", shortName: "SG", resultTime: "04:40 PM", chartSlug: "Shree-Ganesh-satta-result-chart", sortOrder: 5 },
-  { id: "agra", name: "Agra", shortName: "AG", resultTime: "05:30 PM", chartSlug: "Agra-satta-result-chart", sortOrder: 6 },
-  { id: "faridabad", name: "FARIDABAD", shortName: "FB", resultTime: "06:10 PM", chartSlug: "FARIDABAD-satta-result-chart", sortOrder: 7 },
-  { id: "alwar", name: "Alwar", shortName: "AL", resultTime: "07:30 PM", chartSlug: "Alwar-satta-result-chart", sortOrder: 8 },
-  { id: "ghaziabad", name: "GHAZIABAD", shortName: "GB", resultTime: "09:10 PM", chartSlug: "GHAZIABAD-satta-result-chart", sortOrder: 9 },
-  { id: "dwarka", name: "Dwarka", shortName: "DW", resultTime: "10:20 PM", chartSlug: "Dwarka-satta-result-chart", sortOrder: 10 },
-  { id: "gali", name: "GALI", shortName: "GL", resultTime: "11:40 PM", chartSlug: "GALI-satta-result-chart", sortOrder: 11 },
-  { id: "desawer", name: "DESAWER", shortName: "DS", resultTime: "05:15 AM", chartSlug: "DESAWER-satta-result-chart", sortOrder: 12 }
+const FIRESTORE_PROJECT = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "today-satta-results";
+const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT}/databases/(default)/documents`;
+
+export const fallbackGames: Game[] = [
+  { id: "sadar-bazar", name: "SADAR BAZAR", shortName: "SB", resultTime: "01:39 PM", chartSlug: "SADAR-BAZAR-satta-result-chart", sortOrder: 1 },
+  { id: "gwalior", name: "GWALIOR", shortName: "GW", resultTime: "02:39 PM", chartSlug: "GWALIOR-satta-result-chart", sortOrder: 2 },
+  { id: "delhi-bazar", name: "DELHI BAZAR", shortName: "DB", resultTime: "03:00 PM", chartSlug: "Delhi-Bazar-satta-result-chart", sortOrder: 3 },
+  { id: "delhi-matka", name: "DELHI MATKA", shortName: "DM", resultTime: "03:39 PM", chartSlug: "Delhi-Matka-satta-result-chart", sortOrder: 4 },
+  { id: "shree-ganesh", name: "SHRI GANESH", shortName: "SG", resultTime: "04:30 PM", chartSlug: "Shree-Ganesh-satta-result-chart", sortOrder: 5 },
+  { id: "agra", name: "AGRA", shortName: "AG", resultTime: "05:29 PM", chartSlug: "Agra-satta-result-chart", sortOrder: 6 },
+  { id: "faridabad", name: "FARIDABAD", shortName: "FB", resultTime: "06:00 PM", chartSlug: "FARIDABAD-satta-result-chart", sortOrder: 7 },
+  { id: "alwar", name: "ALWAR", shortName: "AL", resultTime: "07:34 PM", chartSlug: "Alwar-satta-result-chart", sortOrder: 8 },
+  { id: "ghaziabad", name: "GAZIABAD", shortName: "GB", resultTime: "09:25 PM", chartSlug: "GHAZIABAD-satta-result-chart", sortOrder: 9 },
+  { id: "dwarka", name: "DWARKA", shortName: "DW", resultTime: "10:34 PM", chartSlug: "Dwarka-satta-result-chart", sortOrder: 10 },
+  { id: "gali", name: "GALI", shortName: "GL", resultTime: "11:25 PM", chartSlug: "GALI-satta-result-chart", sortOrder: 11 },
+  { id: "desawer", name: "DESAWAR", shortName: "DS", resultTime: "05:00 AM", chartSlug: "DESAWER-satta-result-chart", sortOrder: 12 }
 ];
 
-const chartShortNames = ["DS", "FB", "GB", "GL"];
-const requestedGameAliases = new Map([
-  ["sadar-bazar", ["sadar bazar", "sadar-bazar", "sbzr"]],
-  ["gwalior", ["gwalior", "glr"]],
-  ["delhi-bazar", ["delhi bazar", "delhi-bazar", "delhi bazaar", "db", "dl"]],
-  ["delhi-matka", ["delhi matka", "delhi-matka"]],
-  ["shree-ganesh", ["shree ganesh", "shree-ganesh", "shri ganesh", "shri-ganesh", "sg"]],
-  ["agra", ["agra", "agr"]],
-  ["faridabad", ["faridabad", "fb"]],
-  ["alwar", ["alwar", "alw"]],
-  ["ghaziabad", ["ghaziabad", "gaziabad", "gzbd", "gb"]],
-  ["dwarka", ["dwarka", "dw"]],
-  ["gali", ["gali", "gl"]],
-  ["desawer", ["desawer", "desawar", "ds"]]
-]);
-const knownShortNames = new Map([
-  ["desawer", "DS"],
-  ["faridabad", "FB"],
-  ["ghaziabad", "GB"],
-  ["gali", "GL"]
-]);
+export const chartShortNames = ["DS", "FB", "GB", "GL"];
+
+type FirestoreValue = Record<string, unknown>;
+
+function decodeValue(value: FirestoreValue): unknown {
+  if ("stringValue" in value) return value.stringValue;
+  if ("integerValue" in value) return Number(value.integerValue);
+  if ("doubleValue" in value) return Number(value.doubleValue);
+  if ("booleanValue" in value) return value.booleanValue;
+  if ("timestampValue" in value) return value.timestampValue;
+  if ("nullValue" in value) return null;
+  if ("arrayValue" in value) {
+    const array = value.arrayValue as { values?: FirestoreValue[] };
+    return (array.values || []).map(decodeValue);
+  }
+  if ("mapValue" in value) {
+    const map = value.mapValue as { fields?: Record<string, FirestoreValue> };
+    return decodeFields(map.fields || {});
+  }
+  return null;
+}
+
+function decodeFields(fields: Record<string, FirestoreValue>) {
+  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, decodeValue(value)]));
+}
+
+async function firestoreDocument<T>(
+  collection: string,
+  document: string,
+  options: { fresh?: boolean } = {}
+): Promise<T | null> {
+  try {
+    const response = await fetch(
+      `${FIRESTORE_BASE}/${collection}/${document}`,
+      options.fresh ? { cache: "no-store" } : { next: { revalidate: 30 } }
+    );
+    if (!response.ok) return null;
+    const json = (await response.json()) as { fields?: Record<string, FirestoreValue> };
+    return decodeFields(json.fields || {}) as T;
+  } catch {
+    return null;
+  }
+}
+
+function key(value: unknown) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function twoDigits(value: unknown) {
+  const result = String(value ?? "").trim();
+  return result && result !== "-" ? result.padStart(2, "0") : "XX";
+}
+
+function chartDate(rawDate: unknown, year: number, monthIndex: number) {
+  const raw = String(rawDate ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{1,2}$/.test(raw)) {
+    return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${raw.padStart(2, "0")}`;
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+  }
+
+  return raw;
+}
+
+function istDateKey(date: Date, offsetDays = 0) {
+  const shifted = new Date(date.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(shifted);
+}
+
+type A7Result = { name?: string; time?: string; yesterday?: string; today?: string };
+type A7Homepage = { live?: A7Result[]; next?: A7Result[]; rest?: A7Result[]; scrapedAt?: number };
+type A7SK24Games = { games?: A7Result[]; scrapedAt?: number };
+type A7ChartRow = { date?: string; dswr?: string; frbd?: string; gzbd?: string; gali?: string };
+type A7Chart = { results?: A7ChartRow[]; scrapedAt?: number };
+type A7GameChart = {
+  gameName?: string;
+  month?: string;
+  year?: string | number;
+  results?: Array<{ date?: string; day?: string; result?: string }>;
+};
+
+async function gameChartResultForDate(gameId: string, dateKey: string) {
+  const [yearText, monthText] = dateKey.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  const chart = await firestoreDocument<A7GameChart>(
+    "scraped_cache",
+    `game_${gameId}_${monthNames[monthIndex].toLowerCase()}_${year}`
+  );
+  const row = chart?.results?.find((item) => chartDate(item.date, year, monthIndex) === dateKey);
+  return twoDigits(row?.result);
+}
+
+function aliases(game: Game) {
+  const values: Record<string, string[]> = {
+    "sadar-bazar": ["sadarbazar"],
+    gwalior: ["gwalior", "gwaliorbazar"],
+    "delhi-bazar": ["delhibazar", "delhibazaar"],
+    "delhi-matka": ["delhimatka"],
+    "shree-ganesh": ["shreeganesh", "shriganesh"],
+    agra: ["agra", "agrabazar"],
+    faridabad: ["faridabad", "fridabad", "faridabazar"],
+    ghaziabad: ["ghaziabad", "gaziabad"],
+    desawer: ["desawer", "desawar", "disawar"]
+  };
+  return new Set([key(game.name), key(game.shortName), ...(values[game.id] || [])]);
+}
 
 function slugify(value: string) {
-  return value.trim().replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "").replace(/-+/g, "-");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-function normalizeKey(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-}
+function gameFromA7(item: A7Result, index: number): Game {
+  const name = String(item.name || `Game ${index + 1}`).trim();
+  const normalized = key(name);
+  const known = fallbackGames.find((game) => aliases(game).has(normalized));
+  if (known) {
+    return { ...known, resultTime: item.time || known.resultTime, sortOrder: index + 1 };
+  }
 
-function formatResultTime(value: unknown) {
-  const raw = String(value ?? "").trim();
-  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-
-  if (!match) return raw;
-
-  const hour = Number(match[1]);
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-  return `${String(displayHour).padStart(2, "0")}:${match[2]} ${suffix}`;
-}
-
-function normalizeGame(doc: Document, index: number): Game {
-  const name = String(doc.name ?? doc.gameName ?? doc.title ?? "Game");
-  const knownShortName = knownShortNames.get(name.trim().toLowerCase());
-  const shortName = String(knownShortName ?? doc.shortName ?? doc.code ?? name.slice(0, 2)).toUpperCase();
-  const slug = String(doc.chartSlug ?? `${slugify(name)}-satta-result-chart`);
+  const specialCodes: Record<string, string> = {
+    desawar: "DS",
+    desawer: "DS",
+    disawar: "DS",
+    faridabad: "FB",
+    ghaziabad: "GB",
+    gaziabad: "GB",
+    gali: "GL"
+  };
+  const id = slugify(name);
+  const initials = name
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
 
   return {
-    id: String(doc._id ?? doc.id ?? slugify(name).toLowerCase()),
+    id,
     name,
-    shortName,
-    resultTime: formatResultTime(doc.resultTime ?? doc.time),
-    chartSlug: slug,
-    sortOrder: Number(doc.sortOrder ?? doc.showIndex ?? doc.order ?? index)
+    shortName: specialCodes[normalized] || initials || "GM",
+    resultTime: item.time || "",
+    chartSlug: `${id}-satta-result-chart`,
+    sortOrder: index + 1
   };
 }
 
-function mergeRequestedGames(dbGames: Game[]) {
-  return fallbackGames.map((requestedGame) => {
-    const aliases = requestedGameAliases.get(requestedGame.id) ?? [requestedGame.name, requestedGame.shortName];
-    const aliasKeys = new Set(aliases.map(normalizeKey));
-    const match = dbGames.find((game) => [game.name, game.shortName, game.chartSlug].some((value) => aliasKeys.has(normalizeKey(value))));
-
-    return {
-      ...requestedGame,
-      id: match?.id ?? requestedGame.id
-    };
-  });
-}
-
-function normalizeResult(doc: Document) {
-  const rawGame = doc.game ?? doc.gameId ?? doc.gameName ?? doc.market ?? doc.name;
-  const rawDate = doc.resultDate ?? doc.date ?? doc.day;
-  const result = String(doc.result ?? doc.resultNumber ?? doc.number ?? doc.value ?? "XX").padStart(2, "0");
-
+function monthlyValues(row: A7ChartRow): Record<string, string> {
   return {
-    game: rawGame instanceof ObjectId ? rawGame.toString() : String(rawGame ?? ""),
-    date: rawDate instanceof Date ? toDateKey(rawDate) : String(rawDate ?? ""),
-    result
+    DS: twoDigits(row.dswr),
+    FB: twoDigits(row.frbd),
+    GB: twoDigits(row.gzbd),
+    GL: twoDigits(row.gali)
   };
-}
-
-function gameResultValues(games: Game[]) {
-  const values = new Map<string, string | ObjectId>();
-
-  games.forEach((game) => {
-    [game.id, game.name, game.shortName].forEach((value) => {
-      if (value) {
-        values.set(value, value);
-      }
-    });
-
-    if (ObjectId.isValid(game.id)) {
-      values.set(`object-id:${game.id}`, new ObjectId(game.id));
-    }
-  });
-
-  return Array.from(values.values());
-}
-
-function gameResultFilter(games: Game[]) {
-  const values = gameResultValues(games);
-
-  return {
-    $or: [{ game: { $in: values } }, { gameId: { $in: values } }, { gameName: { $in: values } }, { market: { $in: values } }]
-  };
-}
-
-function resultFor(results: ReturnType<typeof normalizeResult>[], game: Game, dateKey: string) {
-  const match = results.find((result) => {
-    const resultGame = result.game.toLowerCase();
-    return result.date === dateKey && [game.id, game.name, game.shortName].some((key) => resultGame === key.toLowerCase());
-  });
-
-  return match?.result ?? "XX";
 }
 
 export async function getHomeData(date = new Date()): Promise<HomeData> {
-  const todayKey = toDateKey(date);
-  const yesterday = new Date(date);
-  yesterday.setDate(date.getDate() - 1);
-  const yesterdayKey = toDateKey(yesterday);
-  let db;
-
-  try {
-    db = await getDb();
-  } catch {
-    const boardRows = fallbackGames.map((game, index) => ({
-      ...game,
-      yesterday: ["72", "85", "13", "16", "92", "08", "97", "93", "69", "48", "78", "XX"][index] ?? "XX",
-      today: ["64", "30", "12", "96", "27", "82", "69", "51", "XX", "XX", "XX", "24"][index] ?? "XX"
-    }));
-
+  const { monthIndex, year } = getIndiaDateParts(date);
+  const month = monthNames[monthIndex].toLowerCase();
+  const [homepage, sk24, chart] = await Promise.all([
+    firestoreDocument<A7Homepage>("scraped_cache", "homepage", { fresh: true }),
+    firestoreDocument<A7SK24Games>("scraped_cache", "sk24_games", { fresh: true }),
+    firestoreDocument<A7Chart>("scraped_cache", `chart_${month}_${year}`, { fresh: true })
+  ]);
+  // Match a7-satta.co: its fixed result section searches both the primary
+  // homepage cache and the SK24 cache. Several regional games only exist in
+  // sk24_games, so using homepage alone left otherwise available values as XX.
+  const incoming = [
+    ...(sk24?.games || []),
+    ...(homepage?.live || []),
+    ...(homepage?.next || []),
+    ...(homepage?.rest || [])
+  ]
+    .filter((item) => item.name && !String(item.name).includes("SHOW YOUR GAME HERE"));
+  const missingPriorityGames = fallbackGames.filter(
+    (game) => !incoming.some((item) => aliases(game).has(key(item.name)))
+  );
+  const todayKey = istDateKey(date);
+  const yesterdayKey = istDateKey(date, -1);
+  const chartFallbacks = new Map(
+    await Promise.all(
+      missingPriorityGames.map(async (game) => [
+        game.id,
+        {
+          yesterday: await gameChartResultForDate(game.id, yesterdayKey),
+          today: await gameChartResultForDate(game.id, todayKey)
+        }
+      ] as const)
+    )
+  );
+  const manualResults = await getMainGameResultsForDates([yesterdayKey, todayKey]);
+  const usedIncoming = new Set<number>();
+  const priorityRows = fallbackGames.map((game) => {
+    const matchIndex = incoming.findIndex((item, index) => !usedIncoming.has(index) && aliases(game).has(key(item.name)));
+    const match = matchIndex >= 0 ? incoming[matchIndex] : undefined;
+    const fallback = chartFallbacks.get(game.id);
+    const manualYesterday = manualResults.find((item) => item.gameId === game.id && item.date === yesterdayKey);
+    const manualToday = manualResults.find((item) => item.gameId === game.id && item.date === todayKey);
+    if (matchIndex >= 0) usedIncoming.add(matchIndex);
     return {
-      games: fallbackGames,
-      boardRows,
-      monthlyRows: [
-        { day: "01", values: { DS: "XX", FB: "97", GB: "69", GL: "78" } },
-        { day: "02", values: { DS: "24", FB: "69", GB: "XX", GL: "XX" } }
-      ],
-      updatedAt: date,
-      selectedMonth: date.getMonth(),
-      selectedYear: date.getFullYear()
+      ...game,
+      yesterday: manualYesterday?.result ?? (match ? twoDigits(match.yesterday) : fallback?.yesterday ?? "XX"),
+      today: manualToday?.result ?? (match ? twoDigits(match.today) : fallback?.today ?? "XX")
     };
-  }
+  });
 
-  const gameDocs = await db
-    .collection("games")
-    .find({ $or: [{ isActive: true }, { isActive: { $exists: false } }] })
-    .sort({ sortOrder: 1, resultTime: 1 })
-    .toArray()
-    .catch(() => []);
-
-  const dbGames = gameDocs.map(normalizeGame);
-  const games = gameDocs.length ? mergeRequestedGames(dbGames) : fallbackGames;
-  const onlyKnownGames = gameResultFilter(games);
-  const resultDocs = await db
-    .collection("gameresults")
-    .find({
-      $and: [
-        { $or: [{ resultDate: { $in: [todayKey, yesterdayKey] } }, { date: { $in: [todayKey, yesterdayKey] } }] },
-        onlyKnownGames
-      ]
-    })
-    .toArray()
-    .catch(() => []);
-
-  const fallbackResultDocs = resultDocs.length
-    ? resultDocs
-    : await db
-        .collection("results")
-        .find({
-          $and: [
-            { $or: [{ resultDate: { $in: [todayKey, yesterdayKey] } }, { date: { $in: [todayKey, yesterdayKey] } }] },
-            onlyKnownGames
-          ]
-        })
-        .toArray()
-        .catch(() => []);
-
-  const results = fallbackResultDocs.map(normalizeResult);
-  const boardRows = games.map((game) => ({
-    ...game,
-    yesterday: resultFor(results, game, yesterdayKey),
-    today: resultFor(results, game, todayKey)
+  const seen = new Set(priorityRows.map((game) => key(game.name)));
+  const remainingRows = incoming.flatMap((item, index) => {
+    if (usedIncoming.has(index)) return [];
+    const normalized = key(item.name);
+    if (!normalized || seen.has(normalized)) return [];
+    seen.add(normalized);
+    const game = gameFromA7(item, index);
+    return {
+      ...game,
+      yesterday: twoDigits(item.yesterday),
+      today: twoDigits(item.today)
+    };
+  });
+  const boardRows = [...priorityRows, ...remainingRows];
+  const monthlyRows = (chart?.results || []).map((row, index) => ({
+    day: String(row.date || index + 1).replace(/^.*-/, "").padStart(2, "0"),
+    values: monthlyValues(row)
   }));
 
-  const selectedMonth = date.getMonth();
-  const selectedYear = date.getFullYear();
-  const monthlyRows = await getMonthlyRows(selectedYear, selectedMonth, games);
-  const latestUpdate = fallbackResultDocs
-    .map((doc) => doc.updatedAt ?? doc.createdAt)
-    .filter(Boolean)
-    .sort((a, b) => Number(new Date(b)) - Number(new Date(a)))[0];
-
   return {
-    games,
+    games: boardRows.map(({ yesterday: _yesterday, today: _today, ...game }) => game),
     boardRows,
     monthlyRows,
-    updatedAt: latestUpdate ? new Date(latestUpdate) : date,
-    selectedMonth,
-    selectedYear
+    updatedAt: new Date(Math.max(homepage?.scrapedAt || 0, sk24?.scrapedAt || 0, chart?.scrapedAt || 0) || Date.now()),
+    selectedMonth: monthIndex,
+    selectedYear: year
   };
 }
 
-export async function getMonthlyRows(year: number, monthIndex: number, games: Game[] = fallbackGames) {
-  let db;
-  try {
-    db = await getDb();
-  } catch {
-    return [
-      { day: "01", values: { DS: "XX", FB: "97", GB: "69", GL: "78" } },
-      { day: "02", values: { DS: "24", FB: "69", GB: "XX", GL: "XX" } }
-    ];
-  }
-  const month = String(monthIndex + 1).padStart(2, "0");
-  const start = `${year}-${month}-01`;
-  const end = `${year}-${month}-${String(daysInMonth(year, monthIndex)).padStart(2, "0")}`;
-  const gameSource = games === fallbackGames
-    ? mergeRequestedGames(
-        await db
-          .collection("games")
-          .find({ $or: [{ isActive: true }, { isActive: { $exists: false } }] })
-          .toArray()
-          .then((docs) => docs.map(normalizeGame))
-          .catch(() => [])
-      )
-    : games;
-  const chartGames = gameSource.filter((game) => chartShortNames.includes(game.shortName));
-  const docs = await db
-    .collection("gameresults")
-    .find({
-      $and: [{ $or: [{ resultDate: { $gte: start, $lte: end } }, { date: { $gte: start, $lte: end } }] }, gameResultFilter(chartGames)]
-    })
-    .toArray()
-    .catch(() => []);
-  const results = docs.map(normalizeResult);
-
-  return Array.from({ length: daysInMonth(year, monthIndex) }, (_, index) => {
-    const day = String(index + 1).padStart(2, "0");
-    const dateKey = `${year}-${month}-${day}`;
-    return {
-      day,
-      values: Object.fromEntries(chartGames.map((game) => [game.shortName, resultFor(results, game, dateKey)]))
-    };
-  }).filter((row) => Object.values(row.values).some((value) => value !== "XX"));
+export async function getMonthlyRows(year: number, monthIndex: number) {
+  const month = monthNames[monthIndex].toLowerCase();
+  const chart = await firestoreDocument<A7Chart>("scraped_cache", `chart_${month}_${year}`);
+  if (!chart?.results) return [];
+  return chart.results.slice(0, daysInMonth(year, monthIndex)).map((row, index) => ({
+    day: String(row.date || index + 1).replace(/^.*-/, "").padStart(2, "0"),
+    values: monthlyValues(row)
+  }));
 }
 
 export function chartTitle(monthIndex: number, year: number) {
@@ -304,41 +305,61 @@ export function chartTitle(monthIndex: number, year: number) {
 }
 
 export async function getGameRecord(slug: string): Promise<{ game: Game; rows: RecordRow[] }> {
-  const normalizedSlug = slug.toLowerCase();
-  let db;
+  const suffix = "-satta-result-chart";
+  const rawId = slug.toLowerCase().endsWith(suffix) ? slug.toLowerCase().slice(0, -suffix.length) : slug.toLowerCase();
+  const chartAliases: Record<string, string> = {
+    desawer: "desawar",
+    disawar: "desawar",
+    fridabad: "faridabad",
+    gaziabad: "ghaziabad",
+    "shree-ganesh": "shri-ganesh"
+  };
+  const chartId = chartAliases[rawId] || rawId;
+  const knownGame = fallbackGames.find((item) => item.chartSlug.toLowerCase() === slug.toLowerCase());
+  const now = new Date();
+  const { monthIndex: currentMonth, year: currentYear } = getIndiaDateParts(now);
+  const monthName = monthNames[currentMonth].toLowerCase();
+  const chart = await firestoreDocument<A7GameChart>(
+    "scraped_cache",
+    `game_${chartId}_${monthName}_${currentYear}`
+  );
+  const game: Game = knownGame || {
+    id: chartId,
+    name: chart?.gameName || chartId.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    shortName: chartId.slice(0, 3).toUpperCase(),
+    resultTime: "",
+    chartSlug: slug,
+    sortOrder: 0
+  };
 
-  try {
-    db = await getDb();
-  } catch {
-    const game = fallbackGames.find((item) => item.chartSlug.toLowerCase() === normalizedSlug) ?? fallbackGames[0];
+  if (chart?.results?.length) {
+    const year = Number(chart.year || currentYear);
+    const monthIndex = Math.max(
+      0,
+      monthNames.findIndex((month) => month.toLowerCase() === String(chart.month || monthName).toLowerCase())
+    );
+    const manualResults = await getMainGameResultsForMonth(year, monthIndex, game.id);
+    const manualByDate = new Map(manualResults.map((item) => [item.date, item.result]));
+    const chartRows = chart.results.map((row) => {
+      const date = chartDate(row.date, year, monthIndex);
+      return { date, result: manualByDate.get(date) ?? twoDigits(row.result) };
+    });
+    manualResults.forEach((item) => {
+      if (!chartRows.some((row) => row.date === item.date)) chartRows.push({ date: item.date, result: item.result });
+    });
+    chartRows.sort((a, b) => a.date.localeCompare(b.date));
     return {
       game,
-      rows: [
-        { date: "2026-07-01", result: game.shortName === "DS" ? "XX" : "69" },
-        { date: "2026-07-02", result: game.shortName === "DS" ? "24" : "XX" }
-      ]
+      rows: chartRows
     };
   }
 
-  const gameDocs = await db
-    .collection("games")
-    .find({ $or: [{ isActive: true }, { isActive: { $exists: false } }] })
-    .toArray()
-    .catch(() => []);
-  const requestedGames = mergeRequestedGames(gameDocs.map(normalizeGame));
-  const game = requestedGames.find((item) => item.chartSlug.toLowerCase() === normalizedSlug) ?? fallbackGames.find((item) => item.chartSlug.toLowerCase() === normalizedSlug) ?? fallbackGames[0];
-  const docs = await db
-    .collection("gameresults")
-    .find(gameResultFilter([game]))
-    .sort({ resultDate: -1, date: -1 })
-    .limit(365)
-    .toArray()
-    .catch(() => []);
-
+  const monthly = await getMonthlyRows(currentYear, currentMonth);
   return {
     game,
-    rows: docs.map(normalizeResult).map((result) => ({ date: result.date, result: result.result }))
+    rows: monthly.map((row) => ({
+      date: `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${row.day}`,
+      result: row.values[game.shortName] || "XX"
+    }))
   };
 }
-
-export { chartShortNames, fallbackGames };
