@@ -1,43 +1,37 @@
-import { getAdminDb } from "./firebase-admin";
+import { ObjectId } from "mongodb";
+import { getGamesAndResults, getResultsDb } from "./results-mongodb";
 
-const COLLECTION = "main_game_results";
+export type StoredGameResult = { gameId: string; date: string; result: string };
+export type MainGameOption = { id: string; name: string };
 
-export type StoredGameResult = {
-  gameId: string;
-  date: string;
-  result: string;
-};
+export async function getMainGames(): Promise<MainGameOption[]> {
+  const { games } = await getGamesAndResults("main", []);
+  return games.map((game) => ({ id: game._id.toString(), name: game.name }));
+}
 
 export async function saveMainGameResult(entry: StoredGameResult) {
-  await getAdminDb().collection(COLLECTION).doc(`${entry.date}_${entry.gameId}`).set(
-    { ...entry, updatedAt: Date.now() },
-    { merge: true }
+  if (!ObjectId.isValid(entry.gameId)) throw new Error("Invalid MongoDB game ID.");
+  await (await getResultsDb("main")).collection("gameresults").updateOne(
+    { game: new ObjectId(entry.gameId), resultDate: entry.date },
+    { $set: { result: entry.result, updatedAt: new Date() } },
+    { upsert: true }
   );
 }
 
 export async function getMainGameResultsForDates(dates: string[]) {
-  try {
-    if (!dates.length) return [];
-    const snapshot = await getAdminDb().collection(COLLECTION).where("date", "in", dates.slice(0, 10)).get();
-    return snapshot.docs.map((doc) => doc.data() as StoredGameResult);
-  } catch {
-    return [];
-  }
+  const { games, results } = await getGamesAndResults("main", dates);
+  const names = new Set(games.map((game) => game._id.toString()));
+  return results.filter((result) => names.has(result.game.toString())).map((result) => ({
+    gameId: result.game.toString(), date: result.resultDate, result: String(result.result || "XX")
+  }));
 }
 
 export async function getMainGameResultsForMonth(year: number, monthIndex: number, gameId: string) {
-  try {
-    const month = String(monthIndex + 1).padStart(2, "0");
-    const start = `${year}-${month}-01`;
-    const end = `${year}-${month}-31`;
-    const snapshot = await getAdminDb()
-      .collection(COLLECTION)
-      .where("gameId", "==", gameId)
-      .get();
-    return snapshot.docs
-      .map((doc) => doc.data() as StoredGameResult)
-      .filter((item) => item.date >= start && item.date <= end);
-  } catch {
-    return [];
-  }
+  if (!ObjectId.isValid(gameId)) return [];
+  const month = String(monthIndex + 1).padStart(2, "0");
+  const db = await getResultsDb("main");
+  const rows = await db.collection("gameresults").find({
+    game: new ObjectId(gameId), resultDate: { $gte: `${year}-${month}-01`, $lte: `${year}-${month}-31` }
+  }).toArray();
+  return rows.map((row) => ({ gameId, date: String(row.resultDate), result: String(row.result || "XX") }));
 }

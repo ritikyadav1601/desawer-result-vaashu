@@ -29,7 +29,8 @@ export function getIndiaDateParts(date = new Date()) {
 export function toDateKey(date: Date) {
   const { year, monthIndex, day } = getIndiaDateParts(date);
   const month = String(monthIndex + 1).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const dayString = String(day).padStart(2, "0");
+  return `${year}-${month}-${dayString}`;
 }
 
 export function formatFullDate(date: Date) {

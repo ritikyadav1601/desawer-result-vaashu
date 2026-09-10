@@ -83,7 +83,7 @@ export default async function Home() {
                   <h3>MAIN GAMES</h3>
                 </td>
               </tr>
-              {data.boardRows.slice(0, 12).map((game) => (
+              {data.mainGameRows.map((game) => (
                 <tr className="game-result" key={game.id}>
                   <td className="game-details">
                     <h3 className="game-name">{game.name}</h3>
@@ -110,7 +110,7 @@ export default async function Home() {
                   <h3>ALL OTHER GAMES</h3>
                 </td>
               </tr>
-              {data.boardRows.slice(12).map((game) => (
+              {data.otherGameRows.map((game) => (
                 <tr className="game-result" key={game.id}>
                   <td className="game-details">
                     <h3 className="game-name">{game.name}</h3>

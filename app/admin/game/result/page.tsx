@@ -1,7 +1,6 @@
 import AdminShell from "@/components/admin/AdminShell";
 import { updateMainGameResult } from "@/app/admin/actions";
-import { fallbackGames } from "@/lib/data";
-import { getMainGameResultsForDates } from "@/lib/main-game-results";
+import { getMainGameResultsForDates, getMainGames } from "@/lib/main-game-results";
 import { toDateKey } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +8,8 @@ export const dynamic = "force-dynamic";
 export default async function AdminGameResultPage({ searchParams }: { searchParams: Promise<{ date?: string; saved?: string; error?: string }> }) {
   const params = await searchParams;
   const date = params.date || toDateKey(new Date());
-  const results = await getMainGameResultsForDates([date]);
-  const gameNames = new Map(fallbackGames.map((game) => [game.id, game.name]));
+  const [results, games] = await Promise.all([getMainGameResultsForDates([date]), getMainGames()]);
+  const gameNames = new Map(games.map((game) => [game.id, game.name]));
   return (
     <AdminShell>
       <div className="admin-heading">
@@ -18,10 +17,10 @@ export default async function AdminGameResultPage({ searchParams }: { searchPara
         <p>Add or update a result for one of the 12 main games.</p>
       </div>
       {params.saved && <p className="admin-alert">Game result saved successfully.</p>}
-      {params.error && <p className="admin-alert error">{params.error === "invalid" ? "Select a valid game, date, and result." : "Firebase Admin credentials are missing or invalid."}</p>}
+      {params.error && <p className="admin-alert error">{params.error === "invalid" ? "Select a valid game, date, and result." : "MongoDB is unavailable or misconfigured."}</p>}
       <section className="admin-card">
         <form action={updateMainGameResult} className="admin-form admin-grid">
-          <label>Game<select name="gameId" required><option value="">Select game</option>{fallbackGames.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
+          <label>Game<select name="gameId" required><option value="">Select game</option>{games.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
           <label>Date<input type="date" name="date" defaultValue={date} required /></label>
           <label>Result<input name="result" inputMode="numeric" maxLength={3} placeholder="e.g. 45 or XX" required /></label>
           <button>Save Result</button>
