@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
 import { saveKhaiwalSettings } from "@/lib/site-settings";
 import { saveMainGameResult } from "@/lib/main-game-results";
+import { parseFaqText, resetHomepageSeo as resetHomepageSeoDocument, saveHomepageSeo } from "@/lib/homepage-seo";
 
 const value = (form: FormData, name: string) => String(form.get(name) || "").trim();
 
@@ -46,4 +47,40 @@ export async function updateMainGameResult(formData: FormData) {
   }
   revalidatePath("/");
   redirect(`/admin/game/result?date=${encodeURIComponent(date)}&saved=1`);
+}
+
+export async function updateHomepageSeo(formData: FormData) {
+  await requireAdmin();
+  try {
+    await saveHomepageSeo({
+      metaTitle: value(formData, "metaTitle"),
+      metaDescription: value(formData, "metaDescription"),
+      keywords: value(formData, "keywords"),
+      topNotice: value(formData, "topNotice"),
+      pageHeading: value(formData, "pageHeading"),
+      contentHeading: value(formData, "contentHeading"),
+      contentLead: value(formData, "contentLead"),
+      contentHtml: value(formData, "contentHtml"),
+      faqs: parseFaqText(value(formData, "faqs")),
+      disclaimer: value(formData, "disclaimer")
+    });
+  } catch (error) {
+    console.error("[admin] Failed to save homepage SEO:", error instanceof Error ? error.message : "Unknown error");
+    redirect("/admin/seo?error=mongodb");
+  }
+  revalidatePath("/");
+  revalidatePath("/admin/seo");
+  redirect("/admin/seo?saved=1");
+}
+
+export async function resetHomepageSeo() {
+  await requireAdmin();
+  try {
+    await resetHomepageSeoDocument();
+  } catch (error) {
+    console.error("[admin] Failed to reset homepage SEO:", error instanceof Error ? error.message : "Unknown error");
+    redirect("/admin/seo?error=mongodb");
+  }
+  revalidatePath("/");
+  redirect("/admin/seo?reset=1");
 }

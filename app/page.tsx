@@ -2,21 +2,25 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { chartShortNames, chartTitle, getHomeData } from "@/lib/data";
-import { formatBoardDay, formatBoardTitleDate, formatFullDate, formatSeoDate, getIndiaDateParts, monthNames } from "@/lib/date";
+import { formatBoardDay, formatBoardTitleDate, getIndiaDateParts, monthNames } from "@/lib/date";
+import { fillSeoPlaceholders, getHomepageSeo, type HomepageSeo } from "@/lib/homepage-seo";
+import { siteName, siteUrl } from "@/lib/seo";
 import { getKhaiwalSettings, type KhaiwalSettings } from "@/lib/site-settings";
 import AutoRefresh from "@/components/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export function generateMetadata(): Metadata {
-  const date = formatSeoDate(new Date());
-  const title = `Desawer Satta Result ${date} | Live Satta King Chart`;
-  const description = `Today ${date} Live Desawer Satta Result & Satta King chart updates. Get fast results for Desawer, Gali, Faridabad & Ghaziabad.`;
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await getHomepageSeo();
+  const title = fillSeoPlaceholders(seo.metaTitle);
+  const description = fillSeoPlaceholders(seo.metaDescription);
+  const keywords = fillSeoPlaceholders(seo.keywords).split(",").map((item) => item.trim()).filter(Boolean);
 
   return {
-    title,
+    title: { absolute: title },
     description,
+    keywords,
     alternates: { canonical: "/" },
     openGraph: { title, description, url: "/", type: "website" },
     twitter: { title, description }
@@ -31,9 +35,8 @@ export default async function Home() {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  const [data, khaiwal] = await Promise.all([getHomeData(today), getKhaiwalSettings()]);
+  const [data, khaiwal, seo] = await Promise.all([getHomeData(today), getKhaiwalSettings(), getHomepageSeo()]);
   const chartMonth = monthNames[data.selectedMonth];
-  const { year: currentYear } = getIndiaDateParts(today);
 
   return (
     <>
@@ -46,15 +49,10 @@ export default async function Home() {
 
       <main className="container">
         <div className="news text-center" style={{ background: "#FF5252", color: "#fff", fontWeight: "bold" }}>
-          <p>
-            Daily Superfast Desawer Satta Result of {chartMonth} {data.selectedYear} And Leak Numbers for Gali, Desawar,
-            Ghaziabad and Faridabad With Complete Old Satta King Chart of 2015, 2016, 2017, 2018, 2019, 2020, 2021,
-            2023, 2024, 2025 From Satta King Fast, Satta King Ghaziabad, Satta King Desawar, Satta King Gali, Satta King
-            Faridabad.
-          </p>
+          <p>{fillSeoPlaceholders(seo.topNotice, today)}</p>
         </div>
 
-        <h1 className="text-center">Satta Desawer Live Result Of {formatFullDate(today)}</h1>
+        <h1 className="text-center">{fillSeoPlaceholders(seo.pageHeading, today)}</h1>
         <div className="text-center" style={{ margin: "8px 1% 2px 1%", color: "#339966" }}>
           Updated: <time dateTime={data.updatedAt.toISOString()}>{data.updatedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</time> IST.
         </div>
@@ -64,7 +62,7 @@ export default async function Home() {
             <tbody>
               <tr className="board-title">
                 <th colSpan={3}>
-                  <h1 style={{ fontSize: "100%" }}>Satta King Fast Results of {formatBoardTitleDate(today)} &amp; {formatBoardTitleDate(yesterday)}</h1>
+                  <h2 style={{ fontSize: "100%", margin: 0 }}>Satta King Fast Results of {formatBoardTitleDate(today)} &amp; {formatBoardTitleDate(yesterday)}</h2>
                 </th>
               </tr>
               <tr className="board-head">
@@ -167,7 +165,7 @@ export default async function Home() {
 
       <div className="nav-link text-center" title={`${chartMonth}-${data.selectedYear} Satta Result Chart With Record`}>
         <Link href={`/${chartMonth}-${data.selectedYear}`}>
-          <h1 className="nav-text">Click here to view the latest chart for Gali, Desawar, Ghaziabad, and Faridabad for {chartMonth}-{data.selectedYear}</h1>
+          <h2 className="nav-text">Click here to view the latest chart for Gali, Desawar, Ghaziabad, and Faridabad for {chartMonth}-{data.selectedYear}</h2>
         </Link>
       </div>
 
@@ -179,7 +177,7 @@ export default async function Home() {
           </form>
         </div>
       </div>
-      <SeoContent today={today} currentYear={currentYear} />
+      <SeoContent seo={seo} today={today} />
       <FloatingActions whatsapp={khaiwal.whatsapp} />
     </>
   );
@@ -234,93 +232,48 @@ function ChartSelector() {
   );
 }
 
-function SeoContent({ today, currentYear }: { today: Date; currentYear: number }) {
-  const date = formatSeoDate(today);
-  const desawerChartHref = "/DESAWER-satta-result-chart";
+function SeoContent({ seo, today }: { seo: HomepageSeo; today: Date }) {
+  const fill = (value: string) => fillSeoPlaceholders(value, today);
+  const faqs = seo.faqs.map((faq) => ({ question: fill(faq.question), answer: fill(faq.answer) }));
 
   return (
     <section className="content">
-      <h1>Desawer Satta Result {date} | Live Chart</h1>
-      <p className="content-lead"><strong>Superfast Live Desawer Satta Result &amp; Daily Satta King Updates</strong></p>
-      <p>Welcome to Desawerresult.com, India&apos;s primary portal for real-time Desawer Satta Result updates, daily record charts, and instant number declarations. Experience zero-delay live updates for Desawer, Satta King, Gali, Faridabad, Ghaziabad, Shri Ganesh, and Delhi Bazaar on an ultra-fast, mobile-friendly platform built for seamless daily tracking.</p>
-      <ul>
-        <li><strong>Desawer Result Declaration:</strong> Live daily at 05:00 AM IST</li>
-        <li><strong>Zero Delay Live Updates:</strong> Direct result refresh</li>
-        <li><strong>Coverage:</strong> Desawer, Gali, Faridabad, Ghaziabad, Delhi Bazaar &amp; Shri Ganesh</li>
-      </ul>
-      <p className="content-actions"><a href="#live-results">Check Today&apos;s Desawer Live Result</a> <Link href={desawerChartHref}>View Desawer Chart {currentYear}</Link></p>
+      <h2 className="content-title">{fill(seo.contentHeading)}</h2>
+      {seo.contentLead && <p className="content-lead"><strong>{fill(seo.contentLead)}</strong></p>}
+      <div dangerouslySetInnerHTML={{ __html: fill(seo.contentHtml) }} />
 
-      <h2>Your Premier Source for Live Desawer Results &amp; Historical Charts</h2>
-      <p>At Desawerresult.com, we specialize in providing dedicated, ultra-fast tracking for the Desawer Satta Result alongside every major market in the national Satta King network. Built with a responsive, user-first approach, our portal helps users across India receive result declarations without connectivity disruptions or lag.</p>
-      <p>We maintain organized record charts for Desawer Satta King, Gali, Faridabad, and Ghaziabad. Whether you are searching for early morning Desawer updates, reviewing past monthly trends, or analyzing jodi variations, Desawerresult.com offers an accessible tracking environment designed for fast mobile access.</p>
-
-      <h2>Comprehensive Desawer Tracking &amp; Multi-Market Results</h2>
-      <h3>Real-Time Live Result Dashboard</h3>
-      <p>Our scoreboard refreshes at scheduled game times to bring you number declarations without delay:</p>
-      <ul>
-        <li>Desawer Satta Result: 05:00 AM IST</li><li>Delhi Bazaar Result: 03:00 PM IST</li>
-        <li>Shri Ganesh Result: 04:30 PM IST</li><li>Faridabad Satta Result: 06:00 PM IST</li>
-        <li>Ghaziabad Satta Result: 09:25 PM IST</li><li>Gali Satta Result: 11:25 PM IST</li>
-      </ul>
-      <h3>Interactive Desawer Record Charts ({currentYear})</h3>
-      <p>Access complete monthly and yearly historical data tables formatted for rapid readability. Track historical number patterns, cross-reference monthly outcomes, and review archival records across all featured markets.</p>
-      <h3>Daily Single Jodi &amp; Harup Insights</h3>
-      <p>Explore daily statistical combinations, single jodi tracking tables, and Harup number analysis to examine historical trends across top game variations.</p>
-
-      <h2>Why Users Prefer Desawerresult.com for Live Updates</h2>
-      <ul>
-        <li><strong>Dedicated Desawer Speed:</strong> Low-latency delivery for early morning results.</li>
-        <li><strong>Organized Historical Data:</strong> Easy-to-read result archives and record tables.</li>
-        <li><strong>Mobile-First Interface:</strong> Fast loading without heavy code or intrusive pop-ups.</li>
-        <li><strong>Unified Market Tracking:</strong> Desawer, Gali, Faridabad, Ghaziabad, and Delhi Bazaar in one dashboard.</li>
-        <li><strong>Free Public Access:</strong> Live numbers and historical charts with no registration.</li>
-      </ul>
-
-      <h2>How to Check Your Desawer Satta Result in 3 Easy Steps</h2>
-      <ol>
-        <li><strong>Visit the portal:</strong> Open Desawerresult.com on your phone or computer.</li>
-        <li><strong>Select your game table:</strong> Use the Live Result Dashboard or open the <Link href={desawerChartHref}>Desawer Chart</Link>.</li>
-        <li><strong>View real-time updates:</strong> Keep the page open around declaration time to see refreshed results.</li>
-      </ol>
-
-      <h2>Everything You Need to Know About Daily Result Updates</h2>
-      <h3>What time is the Desawer Satta Result declared?</h3>
-      <p>The Desawer Satta Result is declared daily in the early morning at 05:00 AM IST.</p>
-      <h3>How do I check previous monthly Desawer charts?</h3>
-      <p>Open the <Link href={desawerChartHref}>Desawer Chart {currentYear}</Link> to access date-wise record archives.</p>
-      <h3>Is Desawerresult.com free to use?</h3>
-      <p>Yes. Live result scoreboards, historical monthly tables, and daily market updates are available without registration.</p>
-      <h3>Which other games are tracked?</h3>
-      <p>In addition to Desawer, the website tracks Gali, Faridabad, Ghaziabad, Shri Ganesh, and Delhi Bazaar.</p>
-
-      <h2>Get Instant Live Desawer Results Every Morning</h2>
-      <p>Bookmark Desawerresult.com to check superfast Desawer Satta Results, daily Satta King updates, and full {currentYear} charts directly on your phone.</p>
+      {faqs.length > 0 && (
+        <>
+          <h2>Everything You Need to Know About Daily Result Updates</h2>
+          {faqs.map((faq) => (
+            <div key={faq.question}>
+              <h3>{faq.question}</h3>
+              <p>{faq.answer}</p>
+            </div>
+          ))}
+        </>
+      )}
 
       <h2>Disclaimer</h2>
-
-      <p>
-        <strong>Important:</strong> DesawerResult.com is an informational
-        platform only. We do not organize, operate, promote, or facilitate
-        betting, gambling, or wagering activities. The information is provided
-        solely for informational purposes. Users are responsible for complying
-        with applicable laws.
-      </p>
-      <SeoSchema currentYear={currentYear} />
+      <p><strong>Important:</strong> {fill(seo.disclaimer)}</p>
+      <SeoSchema description={fill(seo.metaDescription)} faqs={faqs} />
     </section>
   );
 }
 
-function SeoSchema({ currentYear }: { currentYear: number }) {
-  const schema = {
-    "@context": "https://schema.org",
-    "@graph": [
-      { "@type": "WebSite", "@id": "https://desawerresult.com/#website", url: "https://desawerresult.com/", name: "Desawer Result", description: `Superfast Live Desawer Satta Result & Satta King Record Charts ${currentYear}` },
-      { "@type": "FAQPage", "@id": "https://desawerresult.com/#faq", mainEntity: [
-        { "@type": "Question", name: "What time is the Desawer Satta Result declared?", acceptedAnswer: { "@type": "Answer", text: "The Desawer Satta Result is declared daily in the early morning at 05:00 AM IST." } },
-        { "@type": "Question", name: "How do I check previous monthly Desawer charts?", acceptedAnswer: { "@type": "Answer", text: "Open the Desawer Chart section to access date-wise record archives." } }
-      ] }
-    ]
-  };
+function SeoSchema({ description, faqs }: { description: string; faqs: { question: string; answer: string }[] }) {
+  const base = `${siteUrl}/`;
+  const graph: Record<string, unknown>[] = [
+    { "@type": "WebSite", "@id": `${base}#website`, url: base, name: siteName, description }
+  ];
+  if (faqs.length) {
+    graph.push({
+      "@type": "FAQPage",
+      "@id": `${base}#faq`,
+      mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } }))
+    });
+  }
+  const schema = { "@context": "https://schema.org", "@graph": graph };
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />;
 }
 

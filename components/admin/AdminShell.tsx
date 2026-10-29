@@ -13,6 +13,7 @@ export default async function AdminShell({ children }: { children: React.ReactNo
           <Link href="/admin/dashboard">Khaiwal Settings</Link>
           <Link href="/admin/games">Games</Link>
           <Link href="/admin/game/result">Game Results</Link>
+          <Link href="/admin/seo">Homepage SEO</Link>
           <Link href="/">View Website</Link>
         </nav>
         <form action="/api/admin/logout" method="post"><button className="admin-logout">Log out</button></form>
